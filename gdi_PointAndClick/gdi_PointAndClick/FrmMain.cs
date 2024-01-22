@@ -1,17 +1,19 @@
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Diagnostics.Metrics; // benötigt für Listen
 
 namespace gdi_PointAndClick
 {
     public partial class FrmMain : Form
     {
-        List<Rectangle> rectangles = new List<Rectangle>();
-        List<Brush> rectangleColors = new List<Brush>();
+        List<Paintable> rectangles = new List<Paintable>();
+        //List<Rectangle> rectangles = new List<Rectangle>();
+        //List<Brush> rectangleColors = new List<Brush>();
 
         List<Rectangle> rectangleCrossings = new List<Rectangle>();
         List<Brush> rectangleCrossingColors = new List<Brush>();
 
-        List<String> StateOfAction = new List<String>();
+        private int selectedRectangleIndex = -1;
 
         public FrmMain()
         {
@@ -23,7 +25,6 @@ namespace gdi_PointAndClick
         {
             // Hilfsvarablen
             Graphics g = e.Graphics;
-            
             int w = this.ClientSize.Width;
             int h = this.ClientSize.Height;
 
@@ -34,26 +35,11 @@ namespace gdi_PointAndClick
             // Zeichenmittel
             Brush b = new SolidBrush(Color.FromArgb(randomR, randomG, randomB));
 
-            rectangleColors.Add(b);
+            rectangles.Add(new Paintable(new Rectangle(0, 0, 1, 1), new SolidBrush(Color.Green)));
 
-            for (int i = 0; i < rectangles.Count; i++)
+            foreach (var rectangle in rectangles)
             {
-                g.FillRectangle(rectangleColors[i], rectangles[i]);
-            }
-
-            for (int i = 0; i < rectangles.Count; i++)
-            {
-                for (int ii = 0; ii < rectangles.Count; ii++)
-                {
-                    if(i != ii)
-                    {
-                        rectangleCrossings.Add(Rectangle.Intersect(rectangles[i], rectangles[ii]));
-                        rectangleCrossingColors.Add(new SolidBrush(Color.FromArgb(
-                            ((SolidBrush)rectangleColors[i]).Color.R / 2 + ((SolidBrush)rectangleColors[ii]).Color.R / 2,
-                            ((SolidBrush)rectangleColors[i]).Color.G / 2 + ((SolidBrush)rectangleColors[ii]).Color.R / 2,
-                            ((SolidBrush)rectangleColors[i]).Color.B / 2 + ((SolidBrush)rectangleColors[ii]).Color.R / 2)));
-                    }
-                }
+                g.FillRectangle(rectangle.Brush, rectangle.Rectangle);
             }
 
             for (int i = 0; i < rectangleCrossings.Count; i++)
@@ -68,32 +54,61 @@ namespace gdi_PointAndClick
 
             if (e.Button == MouseButtons.Left)
             {
-                foreach (Rectangle rectangle in rectangles)
+                Paintable p = new Paintable(new Rectangle(-1, -1, -1, -1), new SolidBrush(Color.Black));
+                foreach (var rectangle in rectangles)
                 {
-                    if (rectangle.Contains(mausposition)) return;
+                    if (rectangle.Rectangle.Contains(mausposition)) return;
+
+                    Rectangle r;
+                    do
+                    {
+                        Random ran = new Random();
+                        int random = ran.Next(50, 201);
+                        r = new Rectangle(mausposition.X - random / 2, mausposition.Y - random / 2, random, random);
+                        p = new Paintable(r, new SolidBrush(Color.Green));
+
+                    } while (rectangle.Rectangle.Contains(r));
                 }
 
-                Rectangle r;
-                do
-                {
-                    Random ran = new Random();
-                    int random = ran.Next(20, 81);
-                    r = new Rectangle(mausposition.X - random / 2, mausposition.Y - random / 2, random, random);
+                if (p.Equals(new Paintable(new Rectangle(-1, -1, -1, -1), new SolidBrush(Color.Black))))
+                    rectangles.Add(p);
 
-                } while (rectangles.Contains(r));
-
-                rectangles.Add(r);  // Kurze Variante: rectangles.Add( new Rectangle(...)  );
+                UpdateRectangleCrossings();
 
                 Refresh();
             }
             if (e.Button == MouseButtons.Right)
             {
-                foreach (Rectangle rectangle in rectangles)
+                foreach (var rectangle in rectangles)
+                {
+                    if (rectangle.Rectangle.Contains(mausposition))
+                    {
+                        rectangles.Remove(rectangle);
+                        break;
+                    }
+                }
+                foreach (Rectangle rectangle in rectangleCrossings)
                 {
                     if (rectangle.Contains(mausposition))
                     {
-                        rectangleColors.Remove(rectangleColors[rectangles.IndexOf(rectangle)]);
-                        rectangles.Remove(rectangle);
+                        rectangleCrossingColors.Remove(rectangleCrossingColors[rectangleCrossings.IndexOf(rectangle)]);
+                        rectangleCrossings.Remove(rectangle);
+                        break;
+                    }
+                }
+
+                UpdateRectangleCrossings();
+
+                Refresh();
+            }
+            if (e.Button == MouseButtons.Middle)
+            {
+                foreach (var rectangle in rectangles)
+                {
+                    if (rectangle.Rectangle.Contains(mausposition))
+                    {
+                        selectedRectangleIndex = rectangles.IndexOf(rectangle);
+                        this.Focus(); // Fokussiere das Formular, damit es Tastatureingaben empfängt
                         break;
                     }
                 }
@@ -101,7 +116,68 @@ namespace gdi_PointAndClick
                 Refresh();
             }
         }
+        private void OnPreviewKeyDown(object sender, PreviewKeyDownEventArgs e)
+        {
+            // Verhindere, dass der Fokus auf ein Steuerelement verschoben wird (Standardverhalten für Pfeiltasten)
+            if (e.KeyCode == Keys.Up || e.KeyCode == Keys.Down || e.KeyCode == Keys.Left || e.KeyCode == Keys.Right)
+            {
+                e.IsInputKey = true;
+            }
+        }
+        //private void OnKeysArrows(object sender, KeyEventArgs e)
+        //{
+        //    if (selectedRectangleIndex > -1 && rectangles.Contains(rectangles[selectedRectangleIndex].Rectangle))
+        //    {
+        //        Rectangle selectedRectangle = rectangles[selectedRectangleIndex].Rectangle;
 
+        //        // Bewege das ausgewählte Rechteck basierend auf den Pfeiltasten
+        //        switch (e.KeyCode)
+        //        {
+        //            case Keys.Up:
+        //                selectedRectangle.Y -= 5;
+        //                break;
+        //            case Keys.Down:
+        //                selectedRectangle.Y += 5;
+        //                break;
+        //            case Keys.Left:
+        //                selectedRectangle.X -= 5;
+        //                break;
+        //            case Keys.Right:
+        //                selectedRectangle.X += 5;
+        //                break;
+        //            default:
+        //                break;
+        //        }
+        //        rectangles[selectedRectangleIndex].Rectangle = selectedRectangle;
+
+        //        this.Refresh();
+        //    }
+        //}
+
+        private void UpdateRectangleCrossings()
+        {
+            rectangleCrossings.Clear();
+            rectangleCrossingColors.Clear();
+
+            foreach (var rectanglex in rectangles)
+            {
+                foreach (var rectangley in rectangles)
+                {
+                    if (rectanglex != rectangley && !rectangleCrossings.Contains(Rectangle.Intersect(rectanglex.Rectangle, rectangley.Rectangle)))
+                    {
+                        Rectangle crossing = Rectangle.Intersect(rectanglex.Rectangle, rectangley.Rectangle);
+                        if (!crossing.IsEmpty && !rectangleCrossings.Contains(crossing))
+                        {
+                            rectangleCrossings.Add(crossing);
+                            rectangleCrossingColors.Add(new SolidBrush(Color.FromArgb(
+                                ((SolidBrush)rectanglex.Brush).Color.R / 2 + ((SolidBrush)rectangley.Brush).Color.R / 2,
+                                ((SolidBrush)rectanglex.Brush).Color.G / 2 + ((SolidBrush)rectangley.Brush).Color.R / 2,
+                                ((SolidBrush)rectanglex.Brush).Color.B / 2 + ((SolidBrush)rectangley.Brush).Color.R / 2)));
+                        }
+                    }
+                }
+            }
+        }
         private void FrmMain_KeyDown(object sender, KeyEventArgs e)
         {
             if (e.KeyCode == Keys.Escape)
@@ -109,6 +185,22 @@ namespace gdi_PointAndClick
                 rectangles.Clear();
                 Refresh();
             }
+        }
+    }
+
+    public class Paintable
+
+    {
+        public Rectangle Rectangle { get; init; }
+
+        public SolidBrush Brush { get; init; }
+
+        public Paintable() : this(Rectangle.Empty, new SolidBrush(Color.Black)) { }
+
+        public Paintable(Rectangle rectangle, SolidBrush brush)
+        {
+            Rectangle = rectangle;
+            Brush = brush;
         }
     }
 }
